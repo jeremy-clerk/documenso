@@ -1,6 +1,8 @@
+import { getAuth } from '@clerk/react-router/ssr.server';
 import { Trans } from '@lingui/react/macro';
-import { Link, redirect } from 'react-router';
+import { Link, data, redirect } from 'react-router';
 
+import { authClient } from '@documenso/auth/client';
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import {
   IS_GOOGLE_SSO_ENABLED,
@@ -18,23 +20,53 @@ export function meta() {
   return appMetaTags('Sign In');
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const { isAuthenticated } = await getOptionalSession(request);
+export async function loader(args: Route.LoaderArgs) {
+  const request = args.request;
+  const { getToken } = await getAuth(args);
+  let { isAuthenticated } = await getOptionalSession(request);
+
+  const responseHeaders = new Headers();
+
+  // currently only running this on the sign-in page, but it could be done elsewhere.
+  if (!isAuthenticated) {
+    const res = await authClient.client.clerk.sync.$post(undefined, {
+      headers: { Authorization: `Bearer ${await getToken()}` },
+    });
+
+    // since this is a server side request we need to extract the set-cookie header
+    const setCookieFromSync = res.headers.getSetCookie();
+
+    // take the set cookie headers from the response & map to new headers
+    if (setCookieFromSync && setCookieFromSync.length > 0) {
+      setCookieFromSync.forEach((cookie) => {
+        responseHeaders.append('Set-Cookie', cookie);
+      });
+    }
+    // re-eval our auth state
+    isAuthenticated = (await getOptionalSession(request)).isAuthenticated;
+  }
 
   // SSR env variables.
   const isGoogleSSOEnabled = IS_GOOGLE_SSO_ENABLED;
   const isOIDCSSOEnabled = IS_OIDC_SSO_ENABLED;
   const oidcProviderLabel = OIDC_PROVIDER_LABEL;
 
+  // pass our new headers to the redirect
   if (isAuthenticated) {
-    throw redirect('/documents');
+    throw redirect('/documents', { headers: responseHeaders });
   }
 
-  return {
-    isGoogleSSOEnabled,
-    isOIDCSSOEnabled,
-    oidcProviderLabel,
-  };
+  // return the data with our new headers from the loader
+  return data(
+    {
+      isGoogleSSOEnabled,
+      isOIDCSSOEnabled,
+      oidcProviderLabel,
+    },
+    {
+      headers: responseHeaders,
+    },
+  );
 }
 
 export default function SignIn({ loaderData }: Route.ComponentProps) {

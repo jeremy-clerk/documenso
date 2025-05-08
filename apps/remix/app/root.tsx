@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 
+import { ClerkProvider } from '@clerk/react-router';
+import { rootAuthLoader } from '@clerk/react-router/ssr.server';
 import Plausible from 'plausible-tracker';
 import {
   Links,
@@ -65,42 +67,44 @@ export function meta() {
  */
 export const shouldRevalidate = () => false;
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const session = await getOptionalSession(request);
+export async function loader(args: Route.LoaderArgs) {
+  return rootAuthLoader(args, async ({ request }) => {
+    const session = await getOptionalSession(request);
 
-  let teams: TGetTeamsResponse = [];
+    let teams: TGetTeamsResponse = [];
 
-  if (session.isAuthenticated) {
-    teams = await getTeams({ userId: session.user.id });
-  }
+    if (session.isAuthenticated) {
+      teams = await getTeams({ userId: session.user.id });
+    }
 
-  const { getTheme } = await themeSessionResolver(request);
+    const { getTheme } = await themeSessionResolver(request);
 
-  let lang: SupportedLanguageCodes = await langCookie.parse(request.headers.get('cookie') ?? '');
+    let lang: SupportedLanguageCodes = await langCookie.parse(request.headers.get('cookie') ?? '');
 
-  if (!APP_I18N_OPTIONS.supportedLangs.includes(lang)) {
-    lang = extractLocaleData({ headers: request.headers }).lang;
-  }
+    if (!APP_I18N_OPTIONS.supportedLangs.includes(lang)) {
+      lang = extractLocaleData({ headers: request.headers }).lang;
+    }
 
-  return data(
-    {
-      lang,
-      theme: getTheme(),
-      session: session.isAuthenticated
-        ? {
-            user: session.user,
-            session: session.session,
-            teams,
-          }
-        : null,
-      publicEnv: createPublicEnv(),
-    },
-    {
-      headers: {
-        'Set-Cookie': await langCookie.serialize(lang),
+    return data(
+      {
+        lang,
+        theme: getTheme(),
+        session: session.isAuthenticated
+          ? {
+              user: session.user,
+              session: session.session,
+              teams,
+            }
+          : null,
+        publicEnv: createPublicEnv(),
       },
-    },
-  );
+      {
+        headers: {
+          'Set-Cookie': await langCookie.serialize(lang),
+        },
+      },
+    );
+  });
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -122,49 +126,55 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
-  const { publicEnv, session, lang, ...data } = useLoaderData<typeof loader>() || {};
+  const loaderData = useLoaderData<typeof loader>() || {};
+  const { publicEnv, session, lang, ...data } = loaderData;
 
   const [theme] = useTheme();
 
   return (
-    <html translate="no" lang={lang} data-theme={theme} className={theme ?? ''}>
-      <head>
-        <meta charSet="utf-8" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="manifest" href="/site.webmanifest" />
-        <meta name="google" content="notranslate" />
-        <Meta />
-        <Links />
-        <meta name="google" content="notranslate" />
-        <PreventFlashOnWrongTheme ssrTheme={Boolean(data.theme)} />
+    <ClerkProvider
+      loaderData={loaderData}
+      // load this from env somewhere instead
+      publishableKey="pk_test_c2tpbGxlZC1raXRlLTM0LmNsZXJrLmFjY291bnRzLmRldiQ"
+    >
+      <html translate="no" lang={lang} data-theme={theme} className={theme ?? ''}>
+        <head>
+          <meta charSet="utf-8" />
+          <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+          <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <link rel="manifest" href="/site.webmanifest" />
+          <meta name="google" content="notranslate" />
+          <Meta />
+          <Links />
+          <meta name="google" content="notranslate" />
+          <PreventFlashOnWrongTheme ssrTheme={Boolean(data.theme)} />
 
-        {/* Fix: https://stackoverflow.com/questions/21147149/flash-of-unstyled-content-fouc-in-firefox-only-is-ff-slow-renderer */}
-        <script>0</script>
-      </head>
-      <body>
-        <SessionProvider initialSession={session}>
-          <TooltipProvider>
-            <TrpcProvider>
-              {children}
+          {/* Fix: https://stackoverflow.com/questions/21147149/flash-of-unstyled-content-fouc-in-firefox-only-is-ff-slow-renderer */}
+          <script>0</script>
+        </head>
+        <body>
+          <SessionProvider initialSession={session}>
+            <TooltipProvider>
+              <TrpcProvider>
+                {children}
+                <Toaster />
+              </TrpcProvider>
+            </TooltipProvider>
+          </SessionProvider>
 
-              <Toaster />
-            </TrpcProvider>
-          </TooltipProvider>
-        </SessionProvider>
+          <ScrollRestoration />
+          <Scripts />
 
-        <ScrollRestoration />
-        <Scripts />
-
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.__ENV__ = ${JSON.stringify(publicEnv)}`,
-          }}
-        />
-      </body>
-    </html>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__ENV__ = ${JSON.stringify(publicEnv)}`,
+            }}
+          />
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
 

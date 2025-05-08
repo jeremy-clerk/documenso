@@ -8,7 +8,9 @@ import { ZTeamUrlSchema } from '@documenso/trpc/server/team-router/schema';
 
 import type { Route } from './+types/_index';
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader(args: Route.LoaderArgs) {
+  const request = args.request;
+
   const session = await getOptionalSession(request);
 
   if (session.isAuthenticated) {
@@ -44,5 +46,5 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw redirect(formatDocumentsPath(currentTeam.url));
   }
 
-  throw redirect('/signin');
+  throw redirect(`/signin`);
 }

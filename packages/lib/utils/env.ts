@@ -17,4 +17,8 @@ export const env = (variable: EnvironmentVariable | (string & object)): string |
 };
 
 export const createPublicEnv = () =>
-  Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith('NEXT_PUBLIC_')));
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) => key.startsWith('NEXT_PUBLIC_') || key.startsWith('VITE_CLERK_'),
+    ),
+  );

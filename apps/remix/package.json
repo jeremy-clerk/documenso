@@ -14,6 +14,7 @@
     "with:env": "dotenv -e ../../.env -e ../../.env.local --"
   },
   "dependencies": {
+    "@clerk/react-router": "^1.4.2",
     "@documenso/api": "*",
     "@documenso/assets": "*",
     "@documenso/auth": "*",

@@ -1,5 +1,9 @@
+import { useEffect } from 'react';
+
+import { useSession as useClerkSession } from '@clerk/react-router';
 import { Outlet, redirect } from 'react-router';
 
+import { authClient } from '@documenso/auth/client';
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { getLimits } from '@documenso/ee/server-only/limits/client';
 import { LimitsProvider } from '@documenso/ee/server-only/limits/provider/client';
@@ -20,13 +24,14 @@ import type { Route } from './+types/_layout';
  */
 export const shouldRevalidate = () => false;
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader(args: Route.LoaderArgs) {
+  const request = args.request;
   const requestHeaders = Object.fromEntries(request.headers.entries());
 
   const session = await getOptionalSession(request);
 
   if (!session.isAuthenticated) {
-    throw redirect('/signin');
+    throw redirect(`/signin`);
   }
 
   const [limits, banner] = await Promise.all([
@@ -44,8 +49,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Layout({ loaderData }: Route.ComponentProps) {
   const { user, teams } = useSession();
+  const { isSignedIn, isLoaded } = useClerkSession();
 
   const { banner, limits } = loaderData;
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) void authClient.signOut();
+  }, [isSignedIn, isLoaded]);
 
   return (
     <LimitsProvider initialValue={limits}>

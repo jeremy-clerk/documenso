@@ -8,6 +8,7 @@ import { extractRequestMetadata } from '@documenso/lib/universal/extract-request
 
 import { setCsrfCookie } from './lib/session/session-cookies';
 import { callbackRoute } from './routes/callback';
+import { clerkRoute } from './routes/clerk';
 import { emailPasswordRoute } from './routes/email-password';
 import { oauthRoute } from './routes/oauth';
 import { passkeyRoute } from './routes/passkey';
@@ -47,6 +48,7 @@ export const auth = new Hono<HonoAuthContext>()
   .route('/oauth', oauthRoute)
   .route('/email-password', emailPasswordRoute)
   .route('/passkey', passkeyRoute)
+  .route('/clerk', clerkRoute)
   .route('/two-factor', twoFactorRoute);
 
 /**
